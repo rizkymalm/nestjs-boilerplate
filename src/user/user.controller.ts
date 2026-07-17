@@ -7,12 +7,10 @@ import {
   Post,
   Put,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import { CreateUserDto } from './dto/createUser.dto';
 import { UpdateUserDto } from './dto/updateUser.dto';
 import { UserService } from './user.service';
-import { RoleGuard } from 'src/guards/role.guard';
 
 // /api/user
 @Controller('user')
@@ -20,24 +18,23 @@ import { RoleGuard } from 'src/guards/role.guard';
 export class UserController {
   constructor(private readonly userService: UserService) {}
   @Get()
-  @UseGuards(RoleGuard)
-  getUsers(@Query('name') name: string): unknown {
-    return this.userService.findAllUsers(name);
+  getUsers(
+    @Query('page', ParseIntPipe) page: number,
+    @Query('limit', ParseIntPipe) limit: number,
+  ): unknown {
+    return this.userService.findAllUsers({ page, limit });
   }
 
   @Get(':id')
-  @UseGuards(RoleGuard)
-  getUserById(@Param('id', ParseIntPipe) id: number): unknown {
+  getUserById(@Param('id') id: string): unknown {
     return this.userService.findUserById(id);
   }
 
   @Post()
   createUser(@Body() CreateUserDto: CreateUserDto): unknown {
+    // check
     const data = this.userService.createUser(CreateUserDto);
-    return {
-      data: data,
-      message: 'User created successfully!',
-    };
+    return data;
   }
 
   @Put(':id')
@@ -45,6 +42,6 @@ export class UserController {
     @Param('id') id: string,
     @Body() UpdateUserDto: UpdateUserDto,
   ): unknown {
-    return this.userService.updateUser(parseInt(id), UpdateUserDto);
+    return this.userService.updateUser(id, UpdateUserDto);
   }
 }
