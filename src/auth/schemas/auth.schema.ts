@@ -18,7 +18,7 @@ export class Auth {
   password: string;
 
   @Prop({ required: true, type: Types.ObjectId, ref: 'Role' })
-  role: string;
+  role: Types.ObjectId;
 
   createdAt: Date;
   updatedAt: Date;

@@ -12,11 +12,14 @@ import { CreateUserDto } from './dto/createUser.dto';
 import { UpdateUserDto } from './dto/updateUser.dto';
 import { UserService } from './user.service';
 
+// @Get -> 'user/'
+
 // /api/user
 @Controller('user')
 // @UseGuards(RoleGuard) -> bisa dipakai di sini jika seluruh controller menggunakan guard yang sama
 export class UserController {
   constructor(private readonly userService: UserService) {}
+
   @Get()
   getUsers(
     @Query('page', ParseIntPipe) page: number,
