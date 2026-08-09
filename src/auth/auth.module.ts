@@ -12,6 +12,8 @@ import {
   RefreshToken,
   RefreshTokenSchema,
 } from './schemas/refresh-token.schema';
+import { Session, SessionSchema } from './schemas/session.schema';
+import { GeoLocationService } from 'src/common/utils/geolocaion.service';
 
 @Module({
   imports: [
@@ -19,11 +21,12 @@ import {
       { name: Auth.name, schema: AuthSchema },
       { name: User.name, schema: UserSchema },
       { name: RefreshToken.name, schema: RefreshTokenSchema },
+      { name: Session.name, schema: SessionSchema },
     ]),
     JwtModule.registerAsync(jwtConfig.asProvider()),
   ],
   controllers: [AuthController],
-  providers: [AuthService, LoggerService, TokenService],
+  providers: [AuthService, LoggerService, TokenService, GeoLocationService],
   exports: [TokenService],
 })
 export class AuthModule {}

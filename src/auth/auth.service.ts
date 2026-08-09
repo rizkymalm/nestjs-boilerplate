@@ -16,16 +16,21 @@ import { LoginUserDto } from './dto/loginUser.dto';
 import { TokenService } from './token/token.service';
 import { JWTPayload } from './types/jwt-payload.types';
 import { RefreshToken } from './schemas/refresh-token.schema';
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4, v7 as uuidv7 } from 'uuid';
+import { type IResult } from 'ua-parser-js';
+import { Session } from './schemas/session.schema';
+import { GeoLocationService } from 'src/common/utils/geolocaion.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly logger: LoggerService,
+    private readonly geoLocation: GeoLocationService,
     @InjectConnection() private readonly connection: Connection,
     @InjectModel(Auth.name) private authModel: Model<Auth>,
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(RefreshToken.name) private refreshToken: Model<RefreshToken>,
+    @InjectModel(Session.name) private session: Model<Session>,
     private readonly tokenService: TokenService,
   ) {}
 
@@ -65,7 +70,7 @@ export class AuthService {
     }
   }
 
-  public async loginUser(data: LoginUserDto) {
+  public async loginUser(data: LoginUserDto, userAgent: IResult, ip: string) {
     const user = await this.authModel.findOne({ email: data.email }).exec();
     if (!user) {
       throw new NotFoundException('User not found');
@@ -85,44 +90,69 @@ export class AuthService {
     };
 
     const accessToken = await this.tokenService.generateAccessToken(payload);
-    const refreshToken = uuidv4();
-    await this.storeRefreshToken(refreshToken, user._id);
+    const sessionKey = uuidv7();
+    const token = uuidv4();
+    const refreshToken = `${sessionKey}.${token}`;
+    const hashedToken = await bcrypt.hash(token, 10);
+    await this.storeSession(sessionKey, hashedToken, user._id, userAgent, ip);
     return { accessToken, refreshToken };
   }
 
-  async storeRefreshToken(token: string, user: Types.ObjectId) {
+  async storeSession(
+    key: string,
+    token: string,
+    user: Types.ObjectId,
+    userAgent: IResult,
+    ip: string,
+  ) {
     const expiryDate = new Date();
+    const location = await this.geoLocation.getLocation(ip);
     expiryDate.setDate(expiryDate.getDate() + 7);
-    await this.refreshToken.create({
-      token: token,
+    await this.session.create({
+      refreshTokenHash: token,
+      sessionKey: key,
       user: user,
       expiryDate: expiryDate,
+      browser: userAgent.browser.name,
+      os: userAgent.os.name,
+      ipAddress: ip,
+      userAgent: userAgent.ua,
+      country: location.country,
+      city: location.city,
     });
   }
 
-  async storeUpdateRefreshToken(id: Types.ObjectId, token: string) {
+  async storeUpdateTokenSession(id: Types.ObjectId, token: string) {
     const expiryDate = new Date();
     expiryDate.setDate(expiryDate.getDate() + 7);
-    await this.refreshToken.updateOne(
+    await this.session.updateOne(
       {
         _id: id,
       },
       {
-        token,
+        refreshTokenHash: token,
       },
     );
   }
 
   async refreshTokens(refreshToken: string) {
-    const token = await this.refreshToken.findOne({
-      token: refreshToken,
+    const [key, token] = refreshToken.split('.');
+
+    const checkToken = await this.session.findOne({
+      sessionKey: key,
       expiryDate: { $gte: new Date() },
+      revokedAt: null,
     });
-    if (!token) {
+    if (!checkToken) {
       throw new ForbiddenException('Refresh token expired');
     }
 
-    const user = await this.authModel.findOne({ _id: token.user });
+    const decrypt = await bcrypt.compare(token, checkToken.refreshTokenHash);
+    if (!decrypt) {
+      throw new UnauthorizedException('Refresh token not found');
+    }
+
+    const user = await this.authModel.findOne({ _id: checkToken.user });
 
     if (!user) {
       throw new UnauthorizedException();
@@ -137,11 +167,13 @@ export class AuthService {
 
     const accessToken = await this.tokenService.generateAccessToken(payload);
     const newRefreshToken = uuidv4();
-    await this.storeUpdateRefreshToken(token._id, newRefreshToken);
+    const refreshTokenHashed = await bcrypt.hash(newRefreshToken, 10);
+    const refreshTokenWithKey = `${key}.${newRefreshToken}`;
+    await this.storeUpdateTokenSession(checkToken._id, refreshTokenHashed);
 
     return {
       accessToken,
-      refreshToken: newRefreshToken,
+      refreshToken: refreshTokenWithKey,
     };
   }
 }

@@ -1,7 +1,12 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
 
-@Schema()
+@Schema({
+  timestamps: {
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
+  },
+})
 export class RefreshToken {
   @Prop({ required: true })
   token: string;
@@ -11,6 +16,12 @@ export class RefreshToken {
 
   @Prop({ required: true })
   expiryDate: Date;
+
+  createdAt: Date;
+  updatedAt: Date;
+
+  @Prop({ required: true })
+  revokedAt: Date;
 }
 
 export const RefreshTokenSchema = SchemaFactory.createForClass(RefreshToken);
