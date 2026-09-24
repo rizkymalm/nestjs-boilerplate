@@ -12,6 +12,9 @@ export class Auth {
   username: string;
 
   @Prop({ unique: true, required: true })
+  phone: string;
+
+  @Prop({ unique: true, required: true })
   email: string;
 
   @Prop({ required: true })

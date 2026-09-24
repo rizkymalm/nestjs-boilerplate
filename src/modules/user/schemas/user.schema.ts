@@ -15,6 +15,9 @@ export class User {
   username: string;
 
   @Prop({ unique: true, required: true })
+  phone: string;
+
+  @Prop({ unique: true, required: true })
   email: string;
 
   @Prop({ required: true })
@@ -22,9 +25,6 @@ export class User {
 
   @Prop({ required: false })
   lastName?: string;
-
-  @Prop({ required: true, type: Types.ObjectId, ref: 'Role' })
-  role: string;
 
   createdAt: Date;
   updatedAt: Date;

@@ -1,10 +1,21 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsPhoneNumber,
+  IsString,
+  MinLength,
+} from 'class-validator';
+import { Types } from 'mongoose';
 
 export class RegisterUserDto {
   @IsNotEmpty({ message: 'Username is required' })
   @IsString()
   @MinLength(3)
   username: string;
+
+  @IsNotEmpty({ message: 'Phone Number is required' })
+  @IsPhoneNumber()
+  phone: string;
 
   @IsNotEmpty({ message: 'Email is required' })
   @IsEmail()
@@ -14,5 +25,5 @@ export class RegisterUserDto {
   password: string;
 
   @IsNotEmpty({ message: 'Role is required' })
-  role: string;
+  role: Types.ObjectId;
 }

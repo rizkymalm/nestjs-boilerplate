@@ -47,8 +47,14 @@ export class Session {
   @Prop({ required: true })
   country: string;
 
-  @Prop({ required: true })
+  @Prop({ required: false })
   city: string;
+
+  @Prop({ type: [Number] })
+  ll: [number];
+
+  @Prop({ required: false })
+  timezone: string;
 }
 
 export const SessionSchema = SchemaFactory.createForClass(Session);

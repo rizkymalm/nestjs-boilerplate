@@ -2,24 +2,24 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
-  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { LoggerService } from 'src/user/user.logger';
+import { LoggerService } from 'src/modules/user/user.logger';
 import { Auth } from './schemas/auth.schema';
-import { Connection, Model, Types } from 'mongoose';
-import { User } from 'src/user/schemas/user.schema';
+import mongoose, { Connection, Model, Types } from 'mongoose';
 import { RegisterUserDto } from './dto/registerUser.dto';
 import * as bcrypt from 'bcrypt';
 import { LoginUserDto } from './dto/loginUser.dto';
 import { TokenService } from './token/token.service';
 import { JWTPayload } from './types/jwt-payload.types';
-import { RefreshToken } from './schemas/refresh-token.schema';
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid';
 import { type IResult } from 'ua-parser-js';
 import { Session } from './schemas/session.schema';
-import { GeoLocationService } from 'src/common/utils/geolocaion.service';
+import { GeoLocationService } from '@/common/utils/geolocation.service';
+import { User } from '../user/schemas/user.schema';
+import { aggregateSingle } from '@/common/database/mongoose/aggregate-single';
+import { AuthAggregation } from './types/auth-aggregation.type';
 
 @Injectable()
 export class AuthService {
@@ -29,7 +29,6 @@ export class AuthService {
     @InjectConnection() private readonly connection: Connection,
     @InjectModel(Auth.name) private authModel: Model<Auth>,
     @InjectModel(User.name) private userModel: Model<User>,
-    @InjectModel(RefreshToken.name) private refreshToken: Model<RefreshToken>,
     @InjectModel(Session.name) private session: Model<Session>,
     private readonly tokenService: TokenService,
   ) {}
@@ -38,22 +37,36 @@ export class AuthService {
     this.logger.log('Register user');
     const session = await this.connection.startSession();
     try {
-      const usernameExist = await this.authModel.exists({
-        username: data.username,
-      });
-      if (usernameExist) {
-        throw new ConflictException('Username already exist');
+      const existingUser = await this.authModel
+        .findOne({
+          $or: [
+            { username: data.username },
+            { email: data.email },
+            { phone: data.phone },
+          ],
+        })
+        .lean();
+
+      // logic existing user
+      if (existingUser) {
+        if (existingUser.username === data.username) {
+          throw new ConflictException('Username already exists');
+        }
+        if (existingUser.email === data.email) {
+          throw new ConflictException('Email already exists');
+        }
+        if (existingUser.phone === data.phone) {
+          throw new ConflictException('Phone number already exists');
+        }
       }
-      const emailExist = await this.authModel.exists({ email: data.email });
-      if (emailExist) {
-        throw new ConflictException('Email already exist');
-      }
+
       const createdUser = await session.withTransaction(async () => {
         const salt = 10;
         const hashedPassword = await bcrypt.hash(data.password, salt);
         //insert auth
         const auth = new this.authModel({
           ...data,
+          role: new mongoose.Types.ObjectId(data.role),
           password: hashedPassword,
         });
         const saveAuth = await auth.save({ session });
@@ -70,23 +83,51 @@ export class AuthService {
     }
   }
 
+  async findUserLogin(data: LoginUserDto): Promise<AuthAggregation> {
+    const findUser = await aggregateSingle<Auth, AuthAggregation>(
+      this.authModel,
+      [
+        {
+          $match: {
+            email: data.email,
+          },
+        },
+        {
+          $lookup: {
+            from: 'roles',
+            localField: 'role',
+            foreignField: '_id',
+            as: 'role_detail',
+          },
+        },
+        {
+          $unwind: {
+            path: '$role_detail',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+      ],
+    );
+
+    if (!findUser) {
+      throw new UnauthorizedException('User not found');
+    } else {
+      const user = findUser;
+      //check password
+      const decrypt = await bcrypt.compare(data.password, findUser.password);
+      if (!decrypt) {
+        throw new UnauthorizedException('Password not match');
+      }
+      return user;
+    }
+  }
+
   public async loginUser(data: LoginUserDto, userAgent: IResult, ip: string) {
-    const user = await this.authModel.findOne({ email: data.email }).exec();
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    //check password
-    const decrypt = await bcrypt.compare(data.password, user.password);
-    if (!decrypt) {
-      throw new UnauthorizedException('Password not match');
-    }
-
+    const user = await this.findUserLogin(data);
     const payload: JWTPayload = {
       id: user._id,
-      username: user.username,
       email: user.email,
-      role: user.role,
+      role: user.role_detail.name,
     };
 
     const accessToken = await this.tokenService.generateAccessToken(payload);
@@ -119,6 +160,8 @@ export class AuthService {
       userAgent: userAgent.ua,
       country: location.country,
       city: location.city,
+      ll: location.ll,
+      timezone: location.timezone,
     });
   }
 
@@ -160,9 +203,8 @@ export class AuthService {
 
     const payload: JWTPayload = {
       id: user._id,
-      username: user.username,
       email: user.email,
-      role: user.role,
+      // role: user.role,
     };
 
     const accessToken = await this.tokenService.generateAccessToken(payload);
