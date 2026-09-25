@@ -18,8 +18,8 @@ export class Session {
   })
   sessionKey: string;
 
-  @Prop({ required: true, types: Types.ObjectId })
-  user: Types.ObjectId;
+  @Prop({ required: true, types: Types.ObjectId, ref: 'Auth' })
+  auth: Types.ObjectId;
 
   @Prop({ required: true })
   expiryDate: Date;

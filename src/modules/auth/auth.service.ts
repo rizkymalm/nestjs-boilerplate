@@ -16,9 +16,9 @@ import { JWTPayload } from './types/jwt-payload.types';
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid';
 import { type IResult } from 'ua-parser-js';
 import { Session } from './schemas/session.schema';
-import { GeoLocationService } from '@/common/utils/geolocation.service';
+import { GeoLocationService } from '../../common/utils/geolocation.service';
 import { User } from '../user/schemas/user.schema';
-import { aggregateSingle } from '@/common/database/mongoose/aggregate-single';
+import { aggregateSingle } from '../../common/database/mongoose/aggregate-single';
 import { AuthAggregation } from './types/auth-aggregation.type';
 
 @Injectable()
@@ -122,6 +122,35 @@ export class AuthService {
     }
   }
 
+  async findAuthById(id: Types.ObjectId) {
+    const findAuth = await aggregateSingle<Auth, AuthAggregation>(
+      this.authModel,
+      [
+        {
+          $match: {
+            _id: id,
+          },
+        },
+        {
+          $lookup: {
+            from: 'roles',
+            localField: 'role',
+            foreignField: '_id',
+            as: 'role_detail',
+          },
+        },
+        {
+          $unwind: {
+            path: '$role_detail',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+      ],
+    );
+
+    return findAuth;
+  }
+
   public async loginUser(data: LoginUserDto, userAgent: IResult, ip: string) {
     const user = await this.findUserLogin(data);
     const payload: JWTPayload = {
@@ -152,7 +181,7 @@ export class AuthService {
     await this.session.create({
       refreshTokenHash: token,
       sessionKey: key,
-      user: user,
+      auth: user,
       expiryDate: expiryDate,
       browser: userAgent.browser.name,
       os: userAgent.os.name,
@@ -195,7 +224,7 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token not found');
     }
 
-    const user = await this.authModel.findOne({ _id: checkToken.user });
+    const user = await this.findAuthById(checkToken.auth);
 
     if (!user) {
       throw new UnauthorizedException();
@@ -204,7 +233,7 @@ export class AuthService {
     const payload: JWTPayload = {
       id: user._id,
       email: user.email,
-      // role: user.role,
+      role: user.role_detail.name,
     };
 
     const accessToken = await this.tokenService.generateAccessToken(payload);

@@ -1,4 +1,4 @@
-import { RoleType } from '@/common/enums/role.enum';
+import { RoleType } from '../../../common/enums/role.enum';
 import { Types } from 'mongoose';
 
 export interface AuthAggregation {

@@ -6,11 +6,11 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { type JWTPayload } from './types/jwt-payload.types';
 import { type IResult } from 'ua-parser-js';
-import { ClientIp } from '@/common/decorators/client-ip.decorator';
+import { ClientIp } from '../../common/decorators/client-ip.decorator';
 import { RoleGuard } from '../role/guards/role.guard';
 import { Roles } from '../role/decorator/role.decorator';
-import { RoleType } from '@/common/enums/role.enum';
-import { UserAgent } from '@/common/decorators/user-agent.decorator';
+import { RoleType } from '../../common/enums/role.enum';
+import { UserAgent } from '../../common/decorators/user-agent.decorator';
 
 // @Post -> auth/login
 @Controller('auth')

@@ -6,7 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { RequestHeaders } from '@/modules/auth/types/jwt-payload.types';
+import { RequestHeaders } from '../../../modules/auth/types/jwt-payload.types';
 import { ROLES_KEY } from '../decorator/role.decorator';
 
 @Injectable()

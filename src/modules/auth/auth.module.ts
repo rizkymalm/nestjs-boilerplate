@@ -11,7 +11,7 @@ import jwtConfig from './config/jwt.config';
 import { Session, SessionSchema } from './schemas/session.schema';
 import { Role, RoleSchema } from '../role/schemas/role.schema';
 import { RoleService } from '../role/role.service';
-import { GeoLocationService } from '@/common/utils/geolocation.service';
+import { GeoLocationService } from '../../common/utils/geolocation.service';
 
 @Module({
   imports: [
